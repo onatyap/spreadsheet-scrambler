@@ -1,0 +1,1056 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<!-- No network access at all: no fetch, no XHR, no websockets, no outside scripts, styles, fonts or images. -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data:; connect-src 'none'; form-action 'none'; base-uri 'none'">
+<meta name="description" content="Make a copy of an Excel file with made-up values and the same structure. Runs entirely in your browser.">
+<title>Spreadsheet Scrambler</title>
+<link rel="icon" href="data:,">
+<style>
+:root {
+  --bg: #f7f7f5; --card: #ffffff; --fg: #1d1d1b; --muted: #5d5d58; --line: #e2e1dc;
+  --accent: #0f766e; --accent-fg: #ffffff; --ok: #166534; --bad: #b42318; --warn: #8a5a00;
+  color-scheme: light dark;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #171716; --card: #21211f; --fg: #f1f1ee; --muted: #a7a7a0; --line: #36362f;
+    --accent: #2dd4bf; --accent-fg: #052e2b; --ok: #4ade80; --bad: #f87171; --warn: #fbbf24;
+  }
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+body { margin: 0; background: var(--bg); color: var(--fg); font: 16px/1.55 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+main { max-width: 680px; margin: 0 auto; padding: 40px 16px 64px; }
+h1 { font-size: 1.8rem; line-height: 1.2; margin: 0 0 6px; letter-spacing: -0.01em; }
+.lede { color: var(--muted); margin: 0 0 20px; }
+a { color: var(--accent); }
+code { font: .9em ui-monospace, SFMono-Regular, Menlo, monospace; background: var(--bg); border: 1px solid var(--line); border-radius: 4px; padding: 0 4px; }
+.privacy { background: var(--card); border: 1px solid var(--line); border-left: 4px solid var(--accent); border-radius: 10px; padding: 14px 18px; margin-bottom: 24px; }
+.privacy p { margin: 0; }
+.privacy ul { margin: 8px 0; padding-left: 20px; }
+.drop { position: relative; display: block; text-align: center; background: var(--card); border: 2px dashed var(--line); border-radius: 12px; padding: 30px 16px; cursor: pointer; }
+.drop:hover, .drop.over, .drop:focus-within { border-color: var(--accent); }
+.drop input { position: absolute; inset: 0; opacity: 0; width: 100%; cursor: pointer; }
+.drop strong { display: block; font-size: 1.1rem; }
+.hint { color: var(--muted); font-size: .9rem; margin: 6px 0 0; }
+fieldset { background: var(--card); border: 1px solid var(--line); border-radius: 10px; margin: 16px 0 0; padding: 10px 18px 14px; min-width: 0; }
+legend { font-weight: 650; padding: 0 6px; }
+.checks { display: flex; flex-wrap: wrap; gap: 6px 22px; }
+.check { display: inline-flex; align-items: center; gap: 7px; cursor: pointer; }
+.check input { width: 17px; height: 17px; accent-color: var(--accent); margin: 0; }
+input[type=text], input[type=number] { font: inherit; color: var(--fg); background: var(--bg); border: 1px solid var(--line); border-radius: 7px; padding: 7px 10px; }
+input[type=text] { width: 100%; margin-top: 4px; }
+input[type=number] { width: 4.5em; padding: 3px 6px; }
+.row { margin-top: 12px; }
+.personal { margin: 16px 2px 0; }
+button { display: block; width: 100%; margin-top: 20px; font: inherit; font-weight: 650; color: var(--accent-fg); background: var(--accent); border: 0; border-radius: 10px; padding: 13px 18px; cursor: pointer; }
+button:disabled { opacity: .6; cursor: progress; }
+button:focus-visible, input:focus-visible { outline: 3px solid color-mix(in srgb, var(--accent) 45%, transparent); outline-offset: 2px; }
+#result { margin-top: 22px; }
+#result:empty { display: none; }
+.panel { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 14px 18px; }
+.ok { color: var(--ok); font-weight: 650; margin: 0 0 8px; }
+.error { color: var(--bad); font-weight: 600; margin: 0; }
+.notes { margin: 10px 0 0; padding-left: 20px; color: var(--warn); }
+.table-wrap { overflow-x: auto; margin-top: 8px; }
+table { border-collapse: collapse; width: 100%; font-size: .92rem; font-variant-numeric: tabular-nums; }
+th, td { padding: 5px 8px; border-bottom: 1px solid var(--line); text-align: right; white-space: nowrap; }
+th:first-child, td:first-child { text-align: left; white-space: normal; }
+th { font-weight: 600; color: var(--muted); }
+.small { color: var(--muted); font-size: .9rem; margin: 10px 0 0; }
+details { border-top: 1px solid var(--line); padding: 12px 2px; }
+details:first-of-type { margin-top: 32px; }
+summary { cursor: pointer; font-weight: 650; }
+details ul, details p { margin: 8px 0 0; }
+details ul { padding-left: 20px; }
+footer { color: var(--muted); font-size: .9rem; border-top: 1px solid var(--line); padding-top: 14px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Spreadsheet Scrambler</h1>
+  <p class="lede">Make a copy of an Excel file with made-up values but the same structure, so you can share it, test with it or hand it to other tools without exposing the real data.</p>
+
+  <section class="privacy" aria-label="Privacy">
+    <p><strong>Your file never leaves this computer.</strong> Everything happens inside this page, in your browser.</p>
+    <ul>
+      <li>No upload and no server: the file is read and rewritten in memory.</li>
+      <li>No AI, LLM or agent, and no call to any provider or service.</li>
+      <li>No analytics, cookies or outside code. The page's security policy blocks every network request.</li>
+      <li>Works offline: save this page and open it from your disk.</li>
+    </ul>
+    <p id="source-line"><a id="source" target="_blank" rel="noopener">Read the source code</a>. It is this one file.</p>
+  </section>
+
+  <label class="drop" id="drop">
+    <input type="file" id="file" accept=".xlsx,.xlsm">
+    <strong>Choose an Excel file</strong>
+    <span class="hint" id="filename">or drop it here (.xlsx)</span>
+  </label>
+
+  <form id="options" hidden>
+    <fieldset>
+      <legend>Sheets</legend>
+      <div class="checks" id="sheets"></div>
+    </fieldset>
+
+    <fieldset>
+      <legend>What to scramble</legend>
+      <div class="checks">
+        <label class="check"><input type="checkbox" id="text" checked> Text</label>
+        <label class="check"><input type="checkbox" id="numbers" checked> Numbers</label>
+        <label class="check"><input type="checkbox" id="dates" checked> Dates and times</label>
+        <label class="check"><input type="checkbox" id="bool" checked> TRUE/FALSE</label>
+      </div>
+    </fieldset>
+
+    <fieldset>
+      <legend>Which cells</legend>
+      <label for="ranges">Only these cells</label>
+      <input type="text" id="ranges" placeholder="All cells" spellcheck="false" autocomplete="off">
+      <p class="hint">Leave empty for every cell. Or list ranges such as <code>B2:F500, H:H, 3:10</code>. Put a sheet name in front to limit a range to that sheet: <code>Sales!A2:C40</code>.</p>
+      <label class="row" for="headerRows">Leave the first <input type="number" id="headerRows" min="0" step="1" value="0" inputmode="numeric"> rows of each sheet unchanged, for headings.</label>
+    </fieldset>
+
+    <label class="check personal"><input type="checkbox" id="personal" checked> Remove author names and file properties</label>
+
+    <button type="submit" id="go">Scramble and download</button>
+  </form>
+
+  <div id="result" aria-live="polite"></div>
+
+  <details>
+    <summary>How values change</summary>
+    <ul>
+      <li><b>Text:</b> every letter becomes a random letter and every digit a random digit. Spaces, punctuation and length stay, and Arabic, Cyrillic, Chinese and other scripts stay in their own script. The same text always becomes the same made-up text, so lookups, filters and dropdown lists keep working.</li>
+      <li><b>Numbers:</b> same sign and the same number of digits before and after the decimal point, with new digits. Zero stays zero.</li>
+      <li><b>Dates and times:</b> moved by up to a year, earlier or later.</li>
+      <li><b>TRUE/FALSE:</b> picked at random for each cell.</li>
+      <li>Comments on scrambled cells are scrambled too, and so are the copies of values that charts, pivot tables and links to other files keep inside the file.</li>
+    </ul>
+  </details>
+  <details>
+    <summary>What stays the same</summary>
+    <ul>
+      <li>Sheet names, layout, formatting, column widths, merged cells and table headings.</li>
+      <li>Formulas. Their saved results are cleared, because they could give the real values away. Excel works them out again when you open the file.</li>
+      <li>Text and numbers typed inside formulas, unless the text matches a value that was scrambled.</li>
+      <li>Pictures, embedded files and macros. The page tells you when the file has any.</li>
+    </ul>
+  </details>
+  <details>
+    <summary>Can it be undone?</summary>
+    <p>No. The page takes its random choices from your browser's secure random number generator and never stores them, so nobody can work back to the original values, you included. Keep your original file.</p>
+  </details>
+  <footer>Open source under the MIT licence. Works with .xlsx and .xlsm files, not with old .xls files, CSV or password-protected workbooks.</footer>
+</main>
+
+<script>
+"use strict";
+/* Spreadsheet Scrambler. MIT licence.
+   Everything below runs in this page. It reads the .xlsx (a zip of XML files), changes the values in place and
+   writes a new .xlsx. Nothing is sent anywhere, and the page's Content-Security-Policy would block it if it were. */
+
+const SOURCE_URL = "https://github.com/onatyap/spreadsheet-scrambler"; // for copies served outside GitHub Pages
+
+class UserError extends Error {}
+
+/* ---------- Random choices from the browser's secure generator. Nothing is stored. ---------- */
+
+const RAND = new Uint32Array(512);
+let randPos = RAND.length;
+function randInt(n) { // 0 .. n-1, without bias
+  const limit = 0x100000000 - (0x100000000 % n);
+  for (;;) {
+    if (randPos === RAND.length) { crypto.getRandomValues(RAND); randPos = 0; }
+    const x = RAND[randPos++];
+    if (x < limit) return x % n;
+  }
+}
+
+/* ---------- A letter becomes a letter of the same kind, a digit a digit. Everything else stays. ---------- */
+
+function pool(...ranges) { return { ranges, size: ranges.reduce((n, [a, b]) => n + b - a + 1, 0) }; }
+function pickFrom(p) {
+  let i = randInt(p.size);
+  for (const [a, b] of p.ranges) { if (i <= b - a) return String.fromCodePoint(a + i); i -= b - a + 1; }
+}
+const LATIN_UPPER = pool([0x41, 0x5A]), LATIN_LOWER = pool([0x61, 0x7A]), DIGITS = pool([0x30, 0x39]);
+const POOLS = [ // [first and last code point matched, pool drawn from]
+  [0x41, 0x5A, LATIN_UPPER], [0x61, 0x7A, LATIN_LOWER], [0x30, 0x39, DIGITS],
+  [0x660, 0x669, pool([0x660, 0x669])],                 // Arabic-Indic digits
+  [0x6F0, 0x6F9, pool([0x6F0, 0x6F9])],                 // Persian digits
+  [0x621, 0x64A, pool([0x621, 0x63A], [0x641, 0x64A])], // Arabic letters
+  [0x391, 0x3A9, pool([0x391, 0x3A1], [0x3A3, 0x3A9])], // Greek capitals
+  [0x3B1, 0x3C9, pool([0x3B1, 0x3C9])],                 // Greek small letters
+  [0x410, 0x42F, pool([0x410, 0x42F])],                 // Cyrillic capitals
+  [0x430, 0x44F, pool([0x430, 0x44F])],                 // Cyrillic small letters
+  [0x5D0, 0x5EA, pool([0x5D0, 0x5EA])],                 // Hebrew
+  [0x905, 0x939, pool([0x915, 0x939])],                 // Devanagari
+  [0xE01, 0xE2E, pool([0xE01, 0xE2E])],                 // Thai
+  [0x3041, 0x3096, pool([0x3041, 0x3096])],             // Hiragana
+  [0x30A1, 0x30FA, pool([0x30A1, 0x30FA])],             // Katakana
+  [0x4E00, 0x9FFF, pool([0x4E00, 0x9FFF])],             // Chinese characters
+  [0xAC00, 0xD7A3, pool([0xAC00, 0xD7A3])],             // Hangul
+];
+const HAS_ALNUM = /[\p{L}\p{Nd}]/u, HAS_LETTER = /\p{L}/u;
+function swapChar(ch) {
+  const cp = ch.codePointAt(0);
+  for (const [a, b, p] of POOLS) if (cp >= a && cp <= b) return pickFrom(p);
+  if (/\p{Nd}/u.test(ch)) return pickFrom(DIGITS);
+  if (/\p{L}/u.test(ch)) return pickFrom(ch !== ch.toLowerCase() ? LATIN_UPPER : LATIN_LOWER);
+  return ch;
+}
+
+function numberShape(a) { // up to 15 significant digits, as Excel keeps them
+  let [m, e] = a.toPrecision(15).split("e");
+  if (m.includes(".")) m = m.replace(/0+$/, "").replace(/\.$/, "");
+  return e ? `${m}e${e}` : m;
+}
+function swapDigits(shape) { // new digits in the same places; leading zeros stay, the first digit stays non-zero
+  const [m, e] = shape.split("e");
+  let out = "", leading = true;
+  for (const ch of m) {
+    if (ch < "0" || ch > "9" || (leading && ch === "0")) out += ch;
+    else if (leading) { leading = false; out += String(1 + randInt(9)); }
+    else out += String(randInt(10));
+  }
+  return e ? `${out}e${e}` : out;
+}
+
+function isoToSerial(iso, offset) {
+  const m = iso.match(/^(\d{4})-(\d{2})-(\d{2})(?:T(\d{2}):(\d{2})(?::(\d{2}))?)?/);
+  if (!m) return null;
+  return Date.UTC(+m[1], m[2] - 1, +m[3], +(m[4] || 0), +(m[5] || 0), +(m[6] || 0)) / 86400000 + 25569 - offset;
+}
+function serialToIso(serial, like, offset) {
+  const s = new Date(Math.round((serial + offset - 25569) * 86400000)).toISOString().slice(0, 19);
+  return like.length <= 10 ? s.slice(0, 10) : s;
+}
+
+/* The same original always gets the same replacement within one run, so lookups and filters still line up. */
+class Scrambler {
+  constructor(dateOffset) { this.texts = new Map(); this.numbers = new Map(); this.dates = new Map(); this.offset = dateOffset; }
+
+  text(s) {
+    let out = this.texts.get(s);
+    if (out === undefined) {
+      out = s;
+      if (HAS_ALNUM.test(s)) for (let i = 0; i < 20 && out === s; i++) out = Array.from(s, swapChar).join("");
+      this.texts.set(s, out);
+    }
+    return out;
+  }
+
+  number(raw) {
+    const v = Number(raw);
+    if (!Number.isFinite(v) || v === 0) return raw;
+    const key = String(v);
+    let out = this.numbers.get(key);
+    if (out === undefined) {
+      const shape = numberShape(Math.abs(v));
+      let n = v;
+      for (let i = 0; i < 50 && n === v; i++) n = Math.sign(v) * Number(swapDigits(shape));
+      out = String(n);
+      this.numbers.set(key, out);
+    }
+    return out;
+  }
+
+  date(raw) { // an Excel date: whole days, plus the time of day as a fraction
+    const v = Number(raw);
+    if (!Number.isFinite(v) || v < 0) return this.number(raw);
+    const key = String(v);
+    let out = this.dates.get(key);
+    if (out === undefined) {
+      const day = Math.floor(v), time = v - day;
+      let n = v;
+      for (let i = 0; i < 50 && n === v; i++) {
+        let d = day;
+        if (day > 0) {
+          const shift = (1 + randInt(365)) * (randInt(2) ? 1 : -1);
+          d = day + shift;
+          if (d < 61) d = day + Math.abs(shift); // stay clear of Excel's 1900 quirks
+        }
+        n = d + (time ? (1 + randInt(86399)) / 86400 : 0);
+      }
+      out = String(n);
+      this.dates.set(key, out);
+    }
+    return out;
+  }
+
+  isoDate(iso) {
+    const s = isoToSerial(iso, this.offset);
+    return s === null ? iso : serialToIso(Number(this.date(String(s))), iso, this.offset);
+  }
+
+  /* For copies of values kept elsewhere (charts, pivot caches, filters, formulas): change only what was scrambled. */
+  knownText(s) { return this.texts.has(s) ? this.texts.get(s) : s; }
+  knownValue(s) {
+    if (this.texts.has(s)) return this.texts.get(s);
+    if (s.trim() !== "" && Number.isFinite(Number(s))) {
+      const k = String(Number(s));
+      if (this.numbers.has(k)) return this.numbers.get(k);
+      if (this.dates.has(k)) return this.dates.get(k);
+    }
+    return s;
+  }
+  knownIsoDate(iso) {
+    const s = isoToSerial(iso, this.offset);
+    return s !== null && this.dates.has(String(s)) ? serialToIso(Number(this.dates.get(String(s))), iso, this.offset) : iso;
+  }
+}
+
+/* ---------- Zip: read and write the .xlsx container with the browser's own compression ---------- */
+
+const CRC_TABLE = (() => {
+  const t = new Uint32Array(256);
+  for (let n = 0; n < 256; n++) { let c = n; for (let k = 0; k < 8; k++) c = c & 1 ? 0xEDB88320 ^ (c >>> 1) : c >>> 1; t[n] = c >>> 0; }
+  return t;
+})();
+function crc32(bytes) {
+  let c = 0xFFFFFFFF;
+  for (let i = 0; i < bytes.length; i++) c = CRC_TABLE[(c ^ bytes[i]) & 0xFF] ^ (c >>> 8);
+  return (c ^ 0xFFFFFFFF) >>> 0;
+}
+async function pipe(bytes, stream) {
+  return new Uint8Array(await new Response(new Blob([bytes]).stream().pipeThrough(stream)).arrayBuffer());
+}
+
+async function readZip(buffer) {
+  const bytes = new Uint8Array(buffer), view = new DataView(buffer);
+  if (bytes.length > 4 && view.getUint32(0) === 0xD0CF11E0)
+    throw new UserError("This file is password-protected or in the old .xls format. Remove the password or save it as .xlsx in Excel, then try again.");
+  let end = -1;
+  for (let i = bytes.length - 22; i >= Math.max(0, bytes.length - 65557); i--) if (view.getUint32(i, true) === 0x06054b50) { end = i; break; }
+  if (end < 0) throw new UserError("This doesn't look like an Excel (.xlsx) file.");
+  const count = view.getUint16(end + 10, true);
+  let p = view.getUint32(end + 16, true);
+  if (count === 0xFFFF || p === 0xFFFFFFFF) throw new UserError("This file is too large for this page.");
+  const decoder = new TextDecoder(), entries = [];
+  for (let i = 0; i < count; i++) {
+    if (view.getUint32(p, true) !== 0x02014b50) throw new UserError("This file looks damaged.");
+    const flags = view.getUint16(p + 8, true), method = view.getUint16(p + 10, true);
+    const nameLen = view.getUint16(p + 28, true), extraLen = view.getUint16(p + 30, true), commentLen = view.getUint16(p + 32, true);
+    const offset = view.getUint32(p + 42, true);
+    const name = decoder.decode(bytes.subarray(p + 46, p + 46 + nameLen));
+    if (flags & 1) throw new UserError("This file is encrypted. Remove the password in Excel, then try again.");
+    if (method !== 0 && method !== 8) throw new UserError("This file uses a kind of compression this page can't read.");
+    const start = offset + 30 + view.getUint16(offset + 26, true) + view.getUint16(offset + 28, true);
+    const size = view.getUint32(p + 20, true);
+    entries.push({ name, method, crc: view.getUint32(p + 16, true), size: view.getUint32(p + 24, true), raw: bytes.subarray(start, start + size) });
+    p += 46 + nameLen + extraLen + commentLen;
+  }
+  return entries;
+}
+function unpack(entry) { return entry.method === 0 ? Promise.resolve(entry.raw) : pipe(entry.raw, new DecompressionStream("deflate-raw")); }
+
+async function writeZip(entries) {
+  const encoder = new TextEncoder(), parts = [], central = [];
+  let offset = 0;
+  for (const e of entries) {
+    let { raw, method, crc, size } = e;
+    if (e.data) { size = e.data.length; crc = crc32(e.data); raw = await pipe(e.data, new CompressionStream("deflate-raw")); method = 8; }
+    const name = encoder.encode(e.name), flags = /[^\x00-\x7F]/.test(e.name) ? 0x0800 : 0;
+    const local = new Uint8Array(30 + name.length), l = new DataView(local.buffer);
+    l.setUint32(0, 0x04034b50, true); l.setUint16(4, 20, true); l.setUint16(6, flags, true); l.setUint16(8, method, true);
+    l.setUint16(12, 0x21, true); l.setUint32(14, crc, true); l.setUint32(18, raw.length, true); l.setUint32(22, size, true);
+    l.setUint16(26, name.length, true); local.set(name, 30);
+    const head = new Uint8Array(46 + name.length), c = new DataView(head.buffer);
+    c.setUint32(0, 0x02014b50, true); c.setUint16(4, 20, true); c.setUint16(6, 20, true); c.setUint16(8, flags, true);
+    c.setUint16(10, method, true); c.setUint16(14, 0x21, true); c.setUint32(16, crc, true); c.setUint32(20, raw.length, true);
+    c.setUint32(24, size, true); c.setUint16(28, name.length, true); c.setUint32(42, offset, true); head.set(name, 46);
+    parts.push(local, raw); central.push(head); offset += local.length + raw.length;
+  }
+  const size = central.reduce((n, h) => n + h.length, 0), end = new Uint8Array(22), d = new DataView(end.buffer);
+  d.setUint32(0, 0x06054b50, true); d.setUint16(8, entries.length, true); d.setUint16(10, entries.length, true);
+  d.setUint32(12, size, true); d.setUint32(16, offset, true);
+  return new Blob([...parts, ...central, end], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+}
+
+/* The workbook's files, read on demand. Unchanged files are copied as they are. */
+class Package {
+  constructor(entries) { this.entries = entries; this.byName = new Map(entries.map(e => [e.name, e])); this.cache = new Map(); this.dirty = new Set(); this.removed = new Set(); }
+  async get(name) {
+    if (!name) return null;
+    if (!this.cache.has(name)) { const e = this.byName.get(name); this.cache.set(name, e ? new TextDecoder().decode(await unpack(e)) : null); }
+    return this.cache.get(name);
+  }
+  set(name, text) { if (text !== null && text !== this.cache.get(name)) { this.cache.set(name, text); this.dirty.add(name); } }
+  remove(name) { this.removed.add(name); }
+  names(re) { return this.entries.map(e => e.name).filter(n => re.test(n) && !this.removed.has(n)); }
+  build() {
+    const encoder = new TextEncoder();
+    return writeZip(this.entries.filter(e => !this.removed.has(e.name))
+      .map(e => this.dirty.has(e.name) ? { name: e.name, data: encoder.encode(this.cache.get(e.name)) } : e));
+  }
+}
+
+/* ---------- XML helpers. The files are edited as text so everything not touched stays exactly as it was. ---------- */
+
+const XML_ENTITIES = { lt: "<", gt: ">", amp: "&", quot: '"', apos: "'" };
+function unescapeXml(s) {
+  return s.replace(/&(lt|gt|amp|quot|apos|#\d+|#x[0-9a-fA-F]+);/g, (m, e) =>
+    XML_ENTITIES[e] ?? String.fromCodePoint(e[1] === "x" ? parseInt(e.slice(2), 16) : parseInt(e.slice(1), 10)));
+}
+function escapeXml(s) { return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;"); }
+// Excel writes some characters as _xHHHH_ inside text
+function decodeText(x) { return unescapeXml(x).replace(/_x([0-9A-Fa-f]{4})_/g, (m, h) => String.fromCharCode(parseInt(h, 16))); }
+function encodeText(s) {
+  return escapeXml(s.replace(/_x(?=[0-9A-Fa-f]{4}_)/g, "_x005F_x")
+    .replace(/[\x00-\x08\x0B-\x1F]/g, c => "_x" + c.charCodeAt(0).toString(16).toUpperCase().padStart(4, "0") + "_"));
+}
+function escapeRegex(s) { return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"); }
+function attr(attrs, name) {
+  const m = attrs.match(new RegExp(`(?:^|\\s)${name}\\s*=\\s*(?:"([^"]*)"|'([^']*)')`));
+  return m ? unescapeXml(m[1] ?? m[2]) : null;
+}
+function setAttr(attrs, name, value) {
+  const re = new RegExp(`\\s${name}\\s*=\\s*(?:"[^"]*"|'[^']*')`);
+  if (value === null) return attrs.replace(re, "");
+  const pair = ` ${name}="${escapeXml(value)}"`;
+  return re.test(attrs) ? attrs.replace(re, () => pair) : attrs + pair;
+}
+
+const ROW_RE = /<((?:\w+:)?row)\b([^>]*?)(?:\/>|>([\s\S]*?)<\/\1>)/g;
+const CELL_RE = /<((?:\w+:)?c)\b([^>]*?)(?:\/>|>([\s\S]*?)<\/\1>)/g;
+const V_RE = /<((?:\w+:)?v)\b[^>]*?(?:\/>|>([\s\S]*?)<\/\1>)/;
+const F_RE = /<((?:\w+:)?f)\b([^>]*?)(?:\/>|>([\s\S]*?)<\/\1>)/;
+const IS_RE = /<((?:\w+:)?is)\b([^>]*?)(?:\/>|>([\s\S]*?)<\/\1>)/;
+const SI_RE = /<((?:\w+:)?si)\b[^>]*?(?:\/>|>([\s\S]*?)<\/\1>)/g;
+const T_RE = /<((?:\w+:)?t)\b([^>]*?)(?:\/>|>([\s\S]*?)<\/\1>)/g;
+const TEXT_RE = /<((?:\w+:)?text)\b([^>]*)>([\s\S]*?)<\/\1>/g;
+const RPH_RE = /<((?:\w+:)?rPh)\b[^>]*?(?:\/>|>[\s\S]*?<\/\1>)/g;   // phonetic guides repeat the text
+const PHONETIC_RE = /<(?:\w+:)?phoneticPr\b[^>]*?\/>/g;
+const SHEETDATA_RE = /<((?:\w+:)?sheetData)\b[^>]*?(?:\/>|>[\s\S]*?<\/\1>)/;
+const FORMULA_TAGS = "f|formula|formula1|formula2|definedName|calculatedColumnFormula|totalsRowFormula";
+const LIT_RE = /'(?:[^']|'')*'|"((?:[^"]|"")*)"/g; // a quoted sheet name, or text in quotes
+
+function getV(inner) { const m = inner.match(V_RE); return m ? (m[2] ?? "") : null; }
+function setV(inner, value) { return inner.replace(V_RE, (m, tag) => `<${tag}>${value}</${tag}>`); }
+function colNumber(letters) { let n = 0; for (const ch of letters.toUpperCase()) n = n * 26 + ch.charCodeAt(0) - 64; return n; }
+function cellPosition(ref) { const m = ref && ref.match(/^\$?([A-Za-z]{1,3})\$?(\d+)$/); return m ? { r: +m[2], c: colNumber(m[1]) } : null; }
+
+function richPlain(inner) { // the text of a string that may be split into formatted runs
+  let s = "";
+  for (const m of inner.replace(RPH_RE, "").matchAll(T_RE)) s += decodeText(m[3] ?? "");
+  return s;
+}
+function scrambleRich(inner, scr) { // scrambles the whole text, then puts it back into the same runs and formatting
+  inner = inner.replace(RPH_RE, "").replace(PHONETIC_RE, "");
+  const pieces = Array.from(inner.matchAll(T_RE), m => decodeText(m[3] ?? ""));
+  const original = pieces.join(""), scrambled = scr.text(original), chars = Array.from(scrambled);
+  let pos = 0, i = 0;
+  const out = inner.replace(T_RE, (m, tag, attrs) => {
+    const n = Array.from(pieces[i++]).length, piece = chars.slice(pos, pos + n).join("");
+    pos += n;
+    return `<${tag}${attrs}>${encodeText(piece)}</${tag}>`;
+  });
+  return { inner: out, original, scrambled };
+}
+
+/* Calls fn for every cell with its row and column. fn returns the new cell XML, or nothing to keep it. */
+function mapCells(xml, fn) {
+  const sheetData = xml.match(SHEETDATA_RE);
+  if (!sheetData) return xml;
+  let rowNo = 0;
+  const out = sheetData[0].replace(ROW_RE, (rowXml, rowTag, rowAttrs, rowInner) => {
+    const r = attr(rowAttrs, "r");
+    rowNo = r ? Number(r) : rowNo + 1;
+    if (rowInner === undefined) return rowXml;
+    let colNo = 0;
+    const inner = rowInner.replace(CELL_RE, (cellXml, tag, attrs, cellInner) => {
+      const pos = cellPosition(attr(attrs, "r"));
+      colNo = pos ? pos.c : colNo + 1;
+      return fn({ tag, attrs, inner: cellInner ?? "", row: pos ? pos.r : rowNo, col: colNo }) ?? cellXml;
+    });
+    return `<${rowTag}${rowAttrs}>${inner}</${rowTag}>`;
+  });
+  return xml.slice(0, sheetData.index) + out + xml.slice(sheetData.index + sheetData[0].length);
+}
+function rebuild(c, attrs, inner) { return `<${c.tag}${attrs}>${inner}</${c.tag}>`; }
+
+/* ---------- Relationships between the files in the workbook ---------- */
+
+function dirOf(path) { return path.slice(0, path.lastIndexOf("/") + 1); }
+function relsPathFor(path) { return `${dirOf(path)}_rels/${path.slice(dirOf(path).length)}.rels`; }
+function resolve(base, target) {
+  const out = [];
+  for (const part of (target.startsWith("/") ? target.slice(1) : base + target).split("/")) {
+    if (part === "..") out.pop(); else if (part !== "." && part !== "") out.push(part);
+  }
+  return out.join("/");
+}
+function parseRels(xml) {
+  return Array.from((xml || "").matchAll(/<(?:\w+:)?Relationship\b([^>]*?)\/?>/g), m => ({
+    id: attr(m[1], "Id"), type: attr(m[1], "Type") || "", target: attr(m[1], "Target") || "", external: attr(m[1], "TargetMode") === "External",
+  }));
+}
+
+async function inspectWorkbook(pkg) {
+  const main = parseRels(await pkg.get("_rels/.rels")).find(r => r.type.endsWith("/officeDocument"));
+  const wbPath = resolve("", main ? main.target : "xl/workbook.xml");
+  const wbXml = await pkg.get(wbPath);
+  if (wbXml === null || !/<(?:\w+:)?workbook\b/.test(wbXml)) throw new UserError("This doesn't look like an Excel workbook. Choose an .xlsx file.");
+  const base = dirOf(wbPath), rels = parseRels(await pkg.get(relsPathFor(wbPath)));
+  const sheets = [], otherSheets = [];
+  for (const m of wbXml.matchAll(/<(?:\w+:)?sheet\b([^>]*?)\/?>/g)) {
+    const rel = rels.find(r => r.id === attr(m[1], "(?:\\w+:)id"));
+    if (!rel) continue;
+    const path = resolve(base, rel.target);
+    if (rel.type.endsWith("/worksheet")) sheets.push({ name: attr(m[1], "name") || "", state: attr(m[1], "state") || "visible", path });
+    else if (!rel.type.endsWith("/chartsheet")) otherSheets.push(path); // old macro and dialog sheets
+  }
+  const find = type => { const r = rels.find(x => x.type.endsWith(type)); return r ? resolve(base, r.target) : null; };
+  return {
+    wbPath, sheets, otherSheets, stylesPath: find("/styles"), sstPath: find("/sharedStrings"), personPath: find("/person"),
+    date1904: /<(?:\w+:)?workbookPr\b[^>]*\sdate1904\s*=\s*"(?:1|true)"/.test(wbXml),
+  };
+}
+
+/* Which cell formats show a date or time: their numbers are dates. */
+function dateStyles(xml) {
+  const dates = new Set();
+  if (!xml) return dates;
+  const custom = new Map();
+  for (const m of xml.matchAll(/<(?:\w+:)?numFmt\b([^>]*?)\/?>/g)) custom.set(Number(attr(m[1], "numFmtId")), attr(m[1], "formatCode") || "");
+  const block = xml.match(/<((?:\w+:)?cellXfs)\b[^>]*>([\s\S]*?)<\/\1>/);
+  if (!block) return dates;
+  let i = 0;
+  for (const m of block[2].matchAll(/<(?:\w+:)?xf\b([^>]*?)\/?>/g)) {
+    const id = Number(attr(m[1], "numFmtId") || 0);
+    if (isDateFormat(id, custom.get(id))) dates.add(i);
+    i++;
+  }
+  return dates;
+}
+function isDateFormat(id, code) {
+  if (code === undefined) return (id >= 14 && id <= 22) || (id >= 27 && id <= 36) || (id >= 45 && id <= 47) || (id >= 50 && id <= 58) || (id >= 71 && id <= 81);
+  const section = code.split(";")[0].replace(/"[^"]*"/g, "").replace(/\\./g, "").replace(/[_*]./g, "")
+    .replace(/\[(?!(?:h+|m+|s+)\])[^\]]*\]/gi, "");
+  return /[ymdhs]/i.test(section) && !/general/i.test(section);
+}
+
+/* ---------- Which cells to scramble ---------- */
+
+function parseArea(text) { // B2, B2:F9, B:D, 3:10
+  const sides = text.replace(/\$/g, "").split(":").map(s => s.trim().match(/^([A-Za-z]{1,3})?(\d+)?$/));
+  if (sides.length > 2 || sides.some(m => !m || (!m[1] && !m[2]))) return null;
+  const [a, b = a] = sides;
+  if (!a[1] !== !b[1] || !a[2] !== !b[2]) return null;
+  const cols = a[1] ? [colNumber(a[1]), colNumber(b[1])].sort((x, y) => x - y) : [1, Infinity];
+  const rows = a[2] ? [+a[2], +b[2]].sort((x, y) => x - y) : [1, Infinity];
+  return { c1: cols[0], c2: cols[1], r1: rows[0], r2: rows[1] };
+}
+function inArea(a, r, c) { return r >= a.r1 && r <= a.r2 && c >= a.c1 && c <= a.c2; }
+function splitList(s) {
+  const out = [];
+  let cur = "", quoted = false;
+  for (const ch of s) {
+    if (ch === "'") quoted = !quoted;
+    if (!quoted && (ch === "," || ch === ";")) { out.push(cur); cur = ""; } else cur += ch;
+  }
+  out.push(cur);
+  return out.map(x => x.trim()).filter(Boolean);
+}
+/* Returns a Map from each chosen sheet to null (every cell) or the list of ranges to scramble. */
+function parseSelection(text, allNames, chosenNames) {
+  const selection = new Map(chosenNames.map(n => [n, text.trim() ? [] : null]));
+  for (const token of splitList(text)) {
+    const m = token.match(/^(?:'((?:[^']|'')+)'|([^!']+))!(.+)$/);
+    const area = parseArea(m ? m[3] : token);
+    if (!area) throw new UserError(`"${token}" isn't a cell range. Use ranges like B2:F500, H:H or 3:10.`);
+    if (!m) { for (const list of selection.values()) list.push(area); continue; }
+    const want = (m[1] ? m[1].replace(/''/g, "'") : m[2]).trim();
+    const name = allNames.find(n => n.toLowerCase() === want.toLowerCase());
+    if (name === undefined) throw new UserError(`There's no sheet called "${want}".`);
+    if (!selection.has(name)) throw new UserError(`"${token}" is on the sheet "${name}", which isn't ticked.`);
+    selection.get(name).push(area);
+  }
+  return selection;
+}
+
+/* ---------- Shared strings: Excel keeps most text once, in one list that cells point to ---------- */
+
+class SharedStrings {
+  constructor(xml) {
+    this.xml = xml; this.items = []; this.kept = new Set(); this.map = new Map(); this.refs = 0; this.head = null; this.prefix = "";
+    if (!xml) return;
+    let first = -1, last = 0;
+    for (const m of xml.matchAll(SI_RE)) {
+      if (first < 0) { first = m.index; this.prefix = m[1].includes(":") ? m[1].split(":")[0] + ":" : ""; }
+      last = m.index + m[0].length;
+      this.items.push({ inner: m[2] ?? "" });
+    }
+    if (first >= 0) { this.head = xml.slice(0, first); this.tail = xml.slice(last); }
+    this.originalCount = this.items.length;
+  }
+  text(i) { const it = this.items[i]; if (!it) return ""; if (it.text === undefined) it.text = richPlain(it.inner); return it.text; }
+  keep(i) { this.kept.add(i); this.refs++; }
+  scramble(i, scr) { // a scrambled string is added as a new entry; the original stays only if an untouched cell uses it
+    this.refs++;
+    if (!this.map.has(i)) {
+      if (!this.items[i] || !HAS_ALNUM.test(this.text(i))) this.map.set(i, i);
+      else {
+        const r = scrambleRich(this.items[i].inner, scr);
+        this.items.push({ inner: r.inner, text: r.scrambled });
+        this.map.set(i, this.items.length - 1);
+      }
+    }
+    const n = this.map.get(i);
+    if (n === i) this.kept.add(i);
+    return n;
+  }
+  build() { // originals no cell uses any more are emptied, so they can't linger in the file
+    if (this.head === null) return this.xml;
+    const p = this.prefix;
+    const body = this.items.map((it, i) => i < this.originalCount && !this.kept.has(i)
+      ? `<${p}si><${p}t></${p}t></${p}si>` : `<${p}si>${it.inner}</${p}si>`).join("");
+    const head = this.head.replace(/<((?:\w+:)?sst)\b([^>]*?)>/, (m, tag, a) =>
+      `<${tag}${setAttr(setAttr(a, "count", String(this.refs)), "uniqueCount", String(this.items.length))}>`);
+    return head + body + this.tail;
+  }
+}
+
+/* ---------- The scramble ---------- */
+
+/* opts: { text, numbers, dates, bool, personal, headerRows, selection } (selection from parseSelection)
+   Returns { blob, stats, notes, check }. */
+async function scrambleWorkbook(buffer, opts) {
+  const pkg = new Package(await readZip(buffer));
+  const book = await inspectWorkbook(pkg);
+  const scr = new Scrambler(book.date1904 ? 1462 : 0);
+  const dates = dateStyles(await pkg.get(book.stylesPath));
+  const sst = new SharedStrings(await pkg.get(book.sstPath));
+  const stats = new Map(), totals = {}, kept = new Set(), contexts = [];
+  const add = (sheet, key) => { const s = stats.get(sheet) || {}; s[key] = (s[key] || 0) + 1; stats.set(sheet, s); };
+  const note = key => { totals[key] = (totals[key] || 0) + 1; };
+
+  function rewriteLiterals(f, mode, isList = false) {
+    const each = (s, fn) => isList ? s.split(",").map(p => { const core = p.trim(); return core ? p.replace(core, () => fn(core)) : p; }).join(",") : fn(s);
+    return f.replace(LIT_RE, (m, lit) => {
+      if (lit === undefined) return m;
+      const s = lit.replace(/""/g, '"');
+      const out = mode === "all" ? each(s, x => scr.text(x)) : scr.texts.has(s) ? scr.texts.get(s) : each(s, x => scr.knownText(x));
+      return '"' + out.replace(/"/g, '""') + '"';
+    });
+  }
+  function rewriteFormulaTags(xml, tags, modeFor) {
+    return xml.replace(new RegExp(`<((?:\\w+:)?(?:${tags}))\\b([^>]*)>([^<]*)<\\/\\1>`, "g"), (m, tag, a, body) => {
+      const f = unescapeXml(body), local = tag.split(":").pop();
+      const isList = /^formula[12]$|^f$/.test(local) && /^\s*"[^"]*"\s*$/.test(f);
+      const out = rewriteLiterals(f, modeFor(isList), isList);
+      return out === f ? m : `<${tag}${a}>${escapeXml(out)}</${tag}>`;
+    });
+  }
+  function rewriteValueAttrs(xml, tags, name, fn) {
+    return xml.replace(new RegExp(`<((?:\\w+:)?(?:${tags}))\\b([^>]*?)(\\/?)>`, "g"), (m, tag, a, close) => {
+      const v = attr(a, name);
+      if (v === null) return m;
+      const nv = fn(v, tag.split(":").pop());
+      return nv === v ? m : `<${tag}${setAttr(a, name, nv)}${close}>`;
+    });
+  }
+
+  /* Pass 1: values in cells. */
+  function scrambleCell(c, ctx) {
+    if (F_RE.test(c.inner)) return null; // formulas are done in pass 2
+    const t = attr(c.attrs, "t") || "n", sheet = ctx.sheet.name, selected = ctx.selected(c.row, c.col);
+    if (t === "s") {
+      const raw = getV(c.inner);
+      if (raw === null || raw === "") return null;
+      const i = Number(raw);
+      if (!selected || !opts.text) { sst.keep(i); return null; }
+      const n = sst.scramble(i, scr);
+      if (n === i) { add(sheet, "plain"); return null; }
+      add(sheet, "text");
+      return rebuild(c, c.attrs, setV(c.inner, String(n)));
+    }
+    if (t === "inlineStr") {
+      const m = c.inner.match(IS_RE);
+      if (!m || m[3] === undefined) return null;
+      const plain = richPlain(m[3]);
+      if (!selected || !opts.text || !HAS_ALNUM.test(plain)) { kept.add(plain); if (selected && opts.text) add(sheet, "plain"); return null; }
+      const r = scrambleRich(m[3], scr);
+      add(sheet, "text");
+      return rebuild(c, c.attrs, c.inner.replace(IS_RE, (x, tag, a) => `<${tag}${a}>${r.inner}</${tag}>`));
+    }
+    const raw = getV(c.inner);
+    if (raw === null || raw === "") return null;
+    if (t === "str") {
+      const s = decodeText(raw);
+      if (!selected || !opts.text || !HAS_ALNUM.test(s)) { kept.add(s); return null; }
+      add(sheet, "text");
+      return rebuild(c, c.attrs, setV(c.inner, encodeText(scr.text(s))));
+    }
+    if (!selected || t === "e") return null;
+    if (t === "b") {
+      if (!opts.bool) return null;
+      add(sheet, "bool");
+      return rebuild(c, c.attrs, setV(c.inner, randInt(2) ? "1" : "0"));
+    }
+    if (t === "d" || dates.has(Number(attr(c.attrs, "s") || 0))) {
+      if (!opts.dates) return null;
+      add(sheet, "date");
+      return rebuild(c, c.attrs, setV(c.inner, t === "d" ? scr.isoDate(raw) : scr.date(raw)));
+    }
+    if (!opts.numbers) return null;
+    if (Number(raw) === 0) { add(sheet, "zero"); return null; }
+    add(sheet, "number");
+    return rebuild(c, c.attrs, setV(c.inner, scr.number(raw)));
+  }
+
+  for (const sheet of book.sheets) {
+    const xml = await pkg.get(sheet.path);
+    if (xml === null) continue;
+    const rels = parseRels(await pkg.get(relsPathFor(sheet.path)));
+    const areas = opts.selection.get(sheet.name), skip = [];
+    for (const rel of rels.filter(r => r.type.endsWith("/table"))) { // table headings must match the table's column names
+      const table = (await pkg.get(resolve(dirOf(sheet.path), rel.target)) || "").match(/<(?:\w+:)?table\b([^>]*)>/);
+      const area = table && attr(table[1], "ref") && parseArea(attr(table[1], "ref"));
+      if (area && attr(table[1], "headerRowCount") !== "0") skip.push({ ...area, r2: area.r1 });
+    }
+    const ctx = {
+      sheet, rels, chosen: areas !== undefined, arrays: [],
+      selected: (r, c) => areas !== undefined && r > opts.headerRows && !skip.some(a => inArea(a, r, c)) && (areas === null || areas.some(a => inArea(a, r, c))),
+    };
+    contexts.push(ctx);
+    pkg.set(sheet.path, mapCells(xml, c => scrambleCell(c, ctx)));
+  }
+  for (const path of book.otherSheets) { // only to know which shared strings are still used
+    const xml = await pkg.get(path);
+    if (xml) mapCells(xml, c => { if ((attr(c.attrs, "t") || "") === "s") sst.keep(Number(getV(c.inner))); return null; });
+  }
+
+  /* Pass 2: formulas and everything that copies cell values, now that every scrambled value is known. */
+  for (const ctx of contexts) {
+    const name = ctx.sheet.name;
+    let xml = mapCells(await pkg.get(ctx.sheet.path), c => {
+      const f = c.inner.match(F_RE);
+      if (f) {
+        const type = attr(f[2] || "", "t"), ref = attr(f[2] || "", "ref");
+        if ((type === "array" || type === "dataTable") && ref) { const a = parseArea(ref.split(" ")[0]); if (a) ctx.arrays.push(a); }
+        let inner = c.inner;
+        if (f[3]) {
+          const before = unescapeXml(f[3]), after = rewriteLiterals(before, "known");
+          if (after !== before) { inner = inner.replace(F_RE, (m, tag, a) => `<${tag}${a}>${escapeXml(after)}</${tag}>`); add(name, "formulaText"); }
+        }
+        add(name, "formula");
+        return rebuild(c, setAttr(c.attrs, "t", null), inner.replace(V_RE, "")); // the saved result could reveal real values
+      }
+      if (ctx.arrays.length && ctx.arrays.some(a => inArea(a, c.row, c.col)) && V_RE.test(c.inner))
+        return rebuild(c, setAttr(c.attrs, "t", null), c.inner.replace(V_RE, "").replace(IS_RE, ""));
+      return null;
+    });
+
+    // after the cells: dropdown lists, conditional formats, filters and links
+    const sd = xml.match(SHEETDATA_RE), cut = sd ? sd.index + sd[0].length : 0;
+    let after = xml.slice(cut);
+    after = rewriteFormulaTags(after, "formula|formula1|formula2|f", isList => isList && ctx.chosen && opts.text ? "all" : "known");
+    after = rewriteValueAttrs(after, "filter|customFilter", "val", v => scr.knownValue(v));
+    after = rewriteValueAttrs(after, "cfRule", "text", v => scr.knownText(v));
+    const links = new Set();
+    after = after.replace(/<((?:\w+:)?hyperlink)\b([^>]*?)(\/?)>/g, (m, tag, a, close) => {
+      const area = parseArea((attr(a, "ref") || "").split(" ")[0]);
+      const selected = opts.text && area && ctx.selected(area.r1, area.c1);
+      let na = a;
+      for (const key of ["display", "tooltip"]) {
+        const v = attr(na, key);
+        if (v === null) continue;
+        const nv = selected ? scr.text(v) : scr.knownText(v);
+        if (nv !== v) na = setAttr(na, key, nv);
+      }
+      const id = attr(a, "(?:\\w+:)id");
+      if (selected && id) links.add(id);
+      return na === a ? m : `<${tag}${na}${close}>`;
+    });
+    pkg.set(ctx.sheet.path, xml.slice(0, cut) + after);
+
+    if (links.size) { // web addresses behind links on scrambled cells
+      const relsPath = relsPathFor(ctx.sheet.path);
+      pkg.set(relsPath, (await pkg.get(relsPath)).replace(/<((?:\w+:)?Relationship)\b([^>]*?)(\/?)>/g, (m, tag, a, close) => {
+        if (!links.has(attr(a, "Id")) || attr(a, "TargetMode") !== "External") return m;
+        note("links");
+        return `<${tag}${setAttr(a, "Target", "https://example.com/")}${close}>`;
+      }));
+    }
+
+    for (const rel of ctx.rels) { // comments and notes
+      const legacy = rel.type.endsWith("/comments"), threaded = rel.type.endsWith("/threadedComment");
+      if (!legacy && !threaded) continue;
+      const path = resolve(dirOf(ctx.sheet.path), rel.target);
+      let cx = await pkg.get(path);
+      if (cx === null) continue;
+      const re = legacy ? /<((?:\w+:)?comment)\b([^>]*)>([\s\S]*?)<\/\1>/g : /<((?:\w+:)?threadedComment)\b([^>]*)>([\s\S]*?)<\/\1>/g;
+      cx = cx.replace(re, (m, tag, a, body) => {
+        const pos = cellPosition(attr(a, "ref"));
+        const selected = opts.text && pos && ctx.selected(pos.r, pos.c);
+        const newBody = body.replace(TEXT_RE, (x, ttag, ta, tbody) => {
+          if (!selected) { kept.add(legacy ? richPlain(tbody) : decodeText(tbody)); return x; }
+          return `<${ttag}${ta}>${legacy ? scrambleRich(tbody, scr).inner : encodeText(scr.text(decodeText(tbody)))}</${ttag}>`;
+        });
+        if (newBody === body) return m;
+        add(name, "comment");
+        return `<${tag}${a}>${newBody}</${tag}>`;
+      });
+      if (opts.personal && legacy) { let n = 0; cx = cx.replace(/<((?:\w+:)?author)>[\s\S]*?<\/\1>/g, (m, tag) => `<${tag}>Author ${++n}</${tag}>`); }
+      pkg.set(path, cx);
+    }
+  }
+
+  if (book.sstPath && opts.text) pkg.set(book.sstPath, sst.build());
+  for (const i of sst.kept) kept.add(sst.text(i));
+
+  // the workbook: named formulas, recalculation on open, and personal details
+  let wb = await pkg.get(book.wbPath);
+  wb = rewriteFormulaTags(wb, "definedName", () => "known");
+  const calc = /<((?:\w+:)?calcPr)\b([^>]*?)(\/?)>/;
+  if (calc.test(wb)) wb = wb.replace(calc, (m, tag, a, close) => `<${tag}${setAttr(a, "fullCalcOnLoad", "1")}${close}>`);
+  else {
+    const p = (wb.match(/<(\w+:)?workbook\b/) || [])[1] || "";
+    for (const el of ["definedNames", "externalReferences", "functionGroups", "sheets"]) {
+      const m = wb.match(new RegExp(`</${p}${el}>|<${p}${el}\\b[^>]*/>`));
+      if (m) { const at = m.index + m[0].length; wb = wb.slice(0, at) + `<${p}calcPr fullCalcOnLoad="1"/>` + wb.slice(at); break; }
+    }
+  }
+  if (opts.personal) wb = rewriteValueAttrs(rewriteValueAttrs(wb, "fileSharing", "userName", () => ""), "absPath", "url", () => "");
+  pkg.set(book.wbPath, wb);
+
+  // charts keep a copy of the values they show
+  for (const path of pkg.names(/(^|\/)charts\/[^/]+\.xml$/)) {
+    const xml = await pkg.get(path);
+    const out = xml.replace(/<((?:\w+:)?(?:v|pt))\b([^>]*)>([^<]*)<\/\1>/g, (m, tag, a, body) => {
+      const v = unescapeXml(body), nv = scr.knownValue(v);
+      return nv === v ? m : `<${tag}${a}>${escapeXml(nv)}</${tag}>`;
+    });
+    if (out !== xml) { pkg.set(path, out); note("charts"); }
+  }
+
+  // pivot tables keep a copy of their source data; Excel rebuilds it on open
+  for (const path of pkg.names(/(^|\/)pivotCache\/[^/]+\.xml$/)) {
+    let xml = await pkg.get(path);
+    xml = rewriteValueAttrs(xml, "s|n|d", "v", (v, local) => local === "d" ? scr.knownIsoDate(v) : scr.knownValue(v));
+    xml = xml.replace(/<((?:\w+:)?sharedItems)\b([^>]*?)(\/?)>/g, (m, tag, a, close) =>
+      `<${tag}${["minValue", "maxValue", "minDate", "maxDate"].reduce((x, k) => setAttr(x, k, null), a)}${close}>`);
+    xml = xml.replace(/<((?:\w+:)?pivotCacheDefinition)\b([^>]*?)>/, (m, tag, a) => `<${tag}${setAttr(a, "refreshOnLoad", "1")}>`);
+    pkg.set(path, xml);
+    note("pivots");
+  }
+
+  // tables: formulas and filter values
+  for (const path of pkg.names(/(^|\/)tables\/[^/]+\.xml$/)) {
+    const xml = await pkg.get(path);
+    pkg.set(path, rewriteValueAttrs(rewriteFormulaTags(xml, "calculatedColumnFormula|totalsRowFormula", () => "known"), "filter|customFilter", "val", v => scr.knownValue(v)));
+  }
+
+  // values copied from other workbooks this one links to
+  for (const path of pkg.names(/(^|\/)externalLinks\/[^/]+\.xml$/)) {
+    const xml = await pkg.get(path);
+    pkg.set(path, xml.replace(/<((?:\w+:)?cell)\b([^>]*?)(?:\/>|>([\s\S]*?)<\/\1>)/g, (m, tag, a, inner) => {
+      const raw = inner && getV(inner);
+      if (!raw) return m;
+      const t = attr(a, "t") || "n";
+      let nv = raw;
+      if ((t === "str" || t === "s") && opts.text) nv = encodeText(scr.text(decodeText(raw)));
+      else if (t === "n" && opts.numbers && Number(raw) !== 0) nv = scr.number(raw);
+      else if (t === "b" && opts.bool) nv = randInt(2) ? "1" : "0";
+      if (nv === raw) return m;
+      note("external");
+      return `<${tag}${a}>${setV(inner, nv)}</${tag}>`;
+    }));
+  }
+
+  if (opts.personal) {
+    for (const path of pkg.names(/(^|\/)externalLinks\/_rels\/[^/]+\.rels$/)) {
+      pkg.set(path, (await pkg.get(path)).replace(/<((?:\w+:)?Relationship)\b([^>]*?)(\/?)>/g, (m, tag, a, close) =>
+        attr(a, "TargetMode") === "External" ? `<${tag}${setAttr(a, "Target", "other-workbook.xlsx")}${close}>` : m));
+    }
+    const core = await pkg.get("docProps/core.xml");
+    if (core) pkg.set("docProps/core.xml", core.replace(
+      /<((?:\w+:)?(?:creator|lastModifiedBy|title|subject|description|keywords|category|contentStatus|identifier))\b([^>]*?)(?:\/>|>[\s\S]*?<\/\1>)/g,
+      (m, tag, a) => `<${tag}${a}></${tag}>`));
+    const app = await pkg.get("docProps/app.xml");
+    if (app) pkg.set("docProps/app.xml", app.replace(/<((?:\w+:)?(?:Company|Manager|HyperlinkBase))\b([^>]*?)(?:\/>|>[\s\S]*?<\/\1>)/g, (m, tag, a) => `<${tag}${a}></${tag}>`));
+    const rootRels = await pkg.get("_rels/.rels");
+    const custom = parseRels(rootRels).find(r => r.type.endsWith("/custom-properties"));
+    if (custom) {
+      const path = resolve("", custom.target);
+      pkg.remove(path);
+      pkg.set("_rels/.rels", rootRels.replace(new RegExp(`<(?:\\w+:)?Relationship\\b[^>]*\\sId="${escapeRegex(custom.id)}"[^>]*?\\/?>`), ""));
+      const types = await pkg.get("[Content_Types].xml");
+      pkg.set("[Content_Types].xml", types.replace(new RegExp(`<(?:\\w+:)?Override\\b[^>]*PartName="/${escapeRegex(path)}"[^>]*?\\/?>`), ""));
+    }
+    const people = await pkg.get(book.personPath);
+    if (people) {
+      let n = 0;
+      pkg.set(book.personPath, people.replace(/<((?:\w+:)?person)\b([^>]*?)(\/?)>/g, (m, tag, a, close) => {
+        n++;
+        let na = setAttr(a, "displayName", `Person ${n}`);
+        if (attr(na, "userId") !== null) na = setAttr(na, "userId", `person${n}`);
+        if (attr(na, "providerId") !== null) na = setAttr(na, "providerId", "None");
+        return `<${tag}${na}${close}>`;
+      }));
+    }
+  }
+
+  const notes = [];
+  const has = re => pkg.names(re).length;
+  if (has(/(^|\/)media\//)) notes.push("The file has pictures. They were left as they are; delete any that show private data.");
+  if (has(/(^|\/)embeddings\//)) notes.push("The file has embedded files. They were left as they are.");
+  if (has(/vbaProject\.bin$/i)) notes.push("The file has macros. They were left as they are.");
+  if (has(/(^|\/)(connections\.xml|queryTables\/)/)) notes.push("The file has data connections. They were left as they are and can name servers and databases.");
+  if (has(/(^|\/)revisions\//)) notes.push("The file keeps a change history. It was left as it is and can hold old values.");
+  if (has(/(^|\/)(slicerCaches|timelineCaches)\//)) notes.push("The file has slicers or timelines. They were left as they are.");
+  if (has(/(^|\/)richData\//)) notes.push("The file has pictures in cells or linked data types. They were left as they are.");
+
+  const blob = await pkg.build();
+  return { blob, stats, totals, notes, check: await checkResult(blob, scr, kept) };
+}
+
+/* Reads the new file back and looks for any scrambled original text that is still in it. */
+async function checkResult(blob, scr, kept) {
+  const pkg = new Package(await readZip(await blob.arrayBuffer()));
+  const found = new Set();
+  for (const path of pkg.names(/\.xml$/)) {
+    if (/(^|\/)(styles|theme\d*)\.xml$/.test(path)) continue;
+    const xml = await pkg.get(path);
+    for (const m of xml.matchAll(/<((?:\w+:)?(?:si|is|text))\b[^>]*>([\s\S]*?)<\/\1>/g)) found.add(m[2].includes("<") ? richPlain(m[2]) : decodeText(m[2]));
+    for (const m of xml.matchAll(/<((?:\w+:)?(?:t|v|pt))\b[^>]*>([^<]*)<\/\1>/g)) found.add(decodeText(m[2]));
+    for (const m of xml.matchAll(new RegExp(`<((?:\\w+:)?(?:${FORMULA_TAGS}))\\b[^>]*>([^<]*)<\\/\\1>`, "g")))
+      for (const l of unescapeXml(m[2]).matchAll(LIT_RE)) {
+        if (l[1] === undefined) continue;
+        const s = l[1].replace(/""/g, '"');
+        found.add(s);
+        for (const p of s.split(",")) found.add(p.trim());
+      }
+    for (const m of xml.matchAll(/\s(?:v|val|display|tooltip|text)="([^"]*)"/g)) found.add(unescapeXml(m[1]));
+  }
+  const fakes = new Set(scr.texts.values());
+  let searched = 0, left = 0;
+  for (const [original, fake] of scr.texts) {
+    if (original === fake || original.length < 3 || !HAS_LETTER.test(original) || kept.has(original)) continue;
+    searched++;
+    if (found.has(original) && !fakes.has(original)) left++;
+  }
+  return { searched, left };
+}
+
+globalThis.SpreadsheetScrambler = { scrambleWorkbook, inspectWorkbook, parseSelection, readZip, Package, UserError };
+
+/* ---------- The page ---------- */
+
+function startPage() {
+  const $ = id => document.getElementById(id);
+  const form = $("options"), result = $("result"), button = $("go"), drop = $("drop");
+  let current = null, lastUrl = null;
+
+  const source = $("source");
+  if (location.hostname.endsWith(".github.io")) {
+    const repo = location.pathname.split("/").filter(Boolean)[0] || "";
+    source.href = `https://github.com/${location.hostname.split(".")[0]}/${repo}`;
+  } else if (SOURCE_URL) source.href = SOURCE_URL;
+  else $("source-line").textContent = "The source code is this one file: use your browser's View Source to read it.";
+
+  const el = (tag, text, cls) => { const e = document.createElement(tag); if (text !== undefined) e.textContent = text; if (cls) e.className = cls; return e; };
+  const fmt = n => (n || 0).toLocaleString();
+  function showError(err) {
+    const panel = el("div", undefined, "panel");
+    panel.append(el("p", err instanceof UserError ? err.message : `Something went wrong: ${err.message || err}`, "error"));
+    result.replaceChildren(panel);
+  }
+
+  async function load(file) {
+    result.replaceChildren(); form.hidden = true; current = null;
+    $("filename").textContent = file.name;
+    try {
+      const buffer = await file.arrayBuffer();
+      const book = await inspectWorkbook(new Package(await readZip(buffer)));
+      if (!book.sheets.length) throw new UserError("This workbook has no worksheets.");
+      current = { file, buffer, book };
+      const box = $("sheets");
+      box.replaceChildren();
+      for (const s of book.sheets) {
+        const label = el("label", undefined, "check"), box1 = el("input");
+        box1.type = "checkbox"; box1.checked = true; box1.name = "sheet"; box1.value = s.name;
+        label.append(box1, s.name + (s.state === "visible" ? "" : " (hidden)"));
+        box.append(label);
+      }
+      form.hidden = false;
+    } catch (err) { showError(err); }
+  }
+
+  $("file").addEventListener("change", e => { if (e.target.files[0]) load(e.target.files[0]); });
+  for (const type of ["dragenter", "dragover"]) drop.addEventListener(type, e => { e.preventDefault(); drop.classList.add("over"); });
+  for (const type of ["dragleave", "drop"]) drop.addEventListener(type, () => drop.classList.remove("over"));
+  drop.addEventListener("drop", e => { e.preventDefault(); const f = e.dataTransfer.files[0]; if (f) load(f); });
+
+  form.addEventListener("submit", async e => {
+    e.preventDefault();
+    if (!current) return;
+    result.replaceChildren();
+    try {
+      const chosen = [...form.querySelectorAll("input[name=sheet]:checked")].map(x => x.value);
+      const opts = {
+        text: $("text").checked, numbers: $("numbers").checked, dates: $("dates").checked, bool: $("bool").checked,
+        personal: $("personal").checked, headerRows: Math.max(0, Math.floor(Number($("headerRows").value) || 0)),
+      };
+      if (!chosen.length) throw new UserError("Tick at least one sheet.");
+      if (!opts.text && !opts.numbers && !opts.dates && !opts.bool) throw new UserError("Tick at least one kind of value to scramble.");
+      opts.selection = parseSelection($("ranges").value, current.book.sheets.map(s => s.name), chosen);
+      button.disabled = true; button.textContent = "Scrambling…";
+      const r = await scrambleWorkbook(current.buffer, opts);
+      if (r.check.left) throw new UserError(`Stopped: ${r.check.left} original text${r.check.left > 1 ? "s were" : " was"} still in the new file, so nothing was saved. Please report this as a bug.`);
+
+      const name = current.file.name.replace(/(\.[^.]+)?$/, ext => ` - scrambled${ext || ".xlsx"}`);
+      if (lastUrl) URL.revokeObjectURL(lastUrl);
+      lastUrl = URL.createObjectURL(r.blob);
+      const link = el("a", name); link.href = lastUrl; link.download = name;
+      const panel = el("div", undefined, "panel"), done = el("p", "Done. Your scrambled copy is downloading: ", "ok");
+      done.append(link);
+      panel.append(done);
+
+      const table = el("table"), headRow = el("tr");
+      for (const h of ["Sheet", "Text", "Numbers", "Dates", "TRUE/FALSE", "Formulas"]) headRow.append(el("th", h));
+      table.append(el("thead"), el("tbody"));
+      table.tHead.append(headRow);
+      let zeros = 0, plain = 0, comments = 0, formulaText = 0;
+      for (const s of current.book.sheets) {
+        const st = r.stats.get(s.name) || {};
+        zeros += st.zero || 0; plain += st.plain || 0; comments += st.comment || 0; formulaText += st.formulaText || 0;
+        if (!chosen.includes(s.name) && !st.formula) continue;
+        const tr = el("tr");
+        tr.append(el("td", s.name), ...[st.text, st.number, st.date, st.bool, st.formula].map(n => el("td", fmt(n))));
+        table.tBodies[0].append(tr);
+      }
+      const wrap = el("div", undefined, "table-wrap");
+      wrap.append(table);
+      panel.append(wrap);
+
+      const facts = [];
+      if (Object.values(Object.fromEntries(r.stats)).some(s => s.formula)) facts.push("Saved formula results were cleared. Excel works them out again when you open the file.");
+      const of = (n, one, many) => `${fmt(n)} ${n === 1 ? one : many}`;
+      if (zeros) facts.push(`${of(zeros, "zero", "zeros")} stayed 0.`);
+      if (plain) facts.push(`${of(plain, "text cell had", "text cells had")} no letters or digits and stayed as they were.`);
+      if (comments) facts.push(`${of(comments, "comment was", "comments were")} scrambled.`);
+      if (formulaText) facts.push(`${of(formulaText, "formula had", "formulas had")} text matching scrambled values, now changed the same way.`);
+      if (r.totals.charts || r.totals.pivots) facts.push("Copies of values kept in charts and pivot tables were changed to match.");
+      if (r.totals.external) facts.push("Values copied from linked workbooks were scrambled too.");
+      facts.push(r.check.searched
+        ? `Check passed: none of the ${of(r.check.searched, "original text", "original texts")} that were scrambled can be found in the new file.`
+        : "Check passed.");
+      for (const f of facts) panel.append(el("p", f, "small"));
+      if (r.notes.length) { const ul = el("ul", undefined, "notes"); for (const n of r.notes) ul.append(el("li", n)); panel.append(ul); }
+      result.replaceChildren(panel);
+      link.click();
+    } catch (err) { showError(err); }
+    finally { button.disabled = false; button.textContent = "Scramble and download"; }
+  });
+}
+if (typeof document !== "undefined") startPage();
+</script>
+</body>
+</html>
