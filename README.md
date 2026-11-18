@@ -6,6 +6,13 @@ It is one HTML file. Open it in a browser, choose a workbook, pick what to scram
 
 **Use it here: https://onatyap.github.io/spreadsheet-scrambler/**
 
+## What it's for
+
+- Sending a realistic sample to a vendor, consultant or support team without sending real customer or financial data.
+- Giving a spreadsheet to an AI assistant or another online tool so it can build formulas, reports or code, without it ever seeing the real values.
+- Test data for developers and data teams that has the exact shape of production files.
+- Demos, training and bug reports with files that look real but aren't.
+
 ## Private by design
 
 - **Nothing leaves your computer.** The page reads the file into memory, rewrites it there and hands you the new file. There is no upload and no server.
@@ -13,8 +20,9 @@ It is one HTML file. Open it in a browser, choose a workbook, pick what to scram
 - **No analytics, cookies, fonts, CDNs or other outside code.** There are no dependencies: the page unzips and zips the workbook with the browser's own compression.
 - **The page can't send anything even by mistake.** Its Content-Security-Policy is `default-src 'none'; connect-src 'none'; form-action 'none'`, so the browser blocks every network request it might make.
 - **It works offline.** Save `index.html` and open it from your disk.
+- **Search and preview files are inert.** The search and link-preview tags in the page, `sitemap.xml`, `llms.txt` and `og-image.png` are only read by search engines and chat apps. The page itself never loads them.
 
-To check for yourself, read `index.html` (about 1,000 lines with the page's HTML and CSS, no minified code) or open your browser's developer tools on the Network tab while you scramble a file. You'll see no requests.
+To check for yourself, read `index.html` (about 1,000 lines with the page's HTML and CSS, no minified code) or open your browser's developer tools on the Network tab while you scramble a file. You'll see no requests. The test in `test/test.mjs` also fails if the page ever gains a way to reach the network: an outside script, style, font or image, a weaker security policy, or code that calls `fetch`, `XMLHttpRequest`, `WebSocket`, `sendBeacon` and the like.
 
 ## What you can choose
 

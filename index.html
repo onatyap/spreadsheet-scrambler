@@ -3,11 +3,49 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<!-- No network access at all: no fetch, no XHR, no websockets, no outside scripts, styles, fonts or images. -->
+<!-- Privacy: this page never touches the network once it has loaded. The policy below blocks fetch, XHR, websockets,
+     beacons and every outside script, style, font and image, so nothing you choose or type can leave your browser.
+     The search and link-preview tags further down are read by search engines and chat apps; the page never loads them. -->
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data:; connect-src 'none'; form-action 'none'; base-uri 'none'">
-<meta name="description" content="Make a copy of an Excel file with made-up values and the same structure. Runs entirely in your browser.">
-<title>Spreadsheet Scrambler</title>
-<link rel="icon" href="data:,">
+<meta name="referrer" content="no-referrer">
+<title>Spreadsheet Scrambler: anonymize Excel data in your browser</title>
+<meta name="description" content="Free tool to anonymize an Excel file: make a copy with made-up names, numbers and dates but the same sheets, columns and formulas. Runs entirely in your browser: no upload, no server, no AI.">
+<meta name="robots" content="index, follow, max-image-preview:large">
+<link rel="canonical" href="https://onatyap.github.io/spreadsheet-scrambler/">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%230f766e'/%3E%3Cpath d='M8 11h16M8 16h16M8 21h16M14 8v16' stroke='%23fff' stroke-width='2'/%3E%3C/svg%3E">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Spreadsheet Scrambler">
+<meta property="og:title" content="Spreadsheet Scrambler: anonymize Excel data in your browser">
+<meta property="og:description" content="Make a copy of an Excel file with made-up values and the same structure. Nothing is uploaded: it runs entirely in your browser, with no server and no AI.">
+<meta property="og:url" content="https://onatyap.github.io/spreadsheet-scrambler/">
+<meta property="og:image" content="https://onatyap.github.io/spreadsheet-scrambler/og-image.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="Spreadsheet Scrambler turns real spreadsheet rows into made-up ones with the same shape">
+<meta name="twitter:card" content="summary_large_image">
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "WebApplication",
+  "name": "Spreadsheet Scrambler",
+  "url": "https://onatyap.github.io/spreadsheet-scrambler/",
+  "description": "Anonymize an Excel workbook in your browser: make a copy with made-up text, numbers and dates that keeps the same sheets, columns, formulas and formatting. Nothing is uploaded; no server and no AI are involved.",
+  "applicationCategory": "UtilitiesApplication",
+  "operatingSystem": "Any",
+  "browserRequirements": "A modern browser: Chrome, Edge, Firefox or Safari from 2023 or later",
+  "isAccessibleForFree": true,
+  "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
+  "license": "https://opensource.org/licenses/MIT",
+  "sameAs": "https://github.com/onatyap/spreadsheet-scrambler",
+  "featureList": [
+    "Scrambles text, numbers, dates and TRUE/FALSE values in .xlsx and .xlsm files",
+    "Keeps sheets, columns, formulas, formatting, dropdowns and lookups working",
+    "Choose sheets and cell ranges, and keep heading rows",
+    "Removes author names and file properties",
+    "Runs offline in the browser: no upload, no server, no AI"
+  ]
+}
+</script>
 <style>
 :root {
   --bg: #f7f7f5; --card: #ffffff; --fg: #1d1d1b; --muted: #5d5d58; --line: #e2e1dc;
@@ -72,7 +110,7 @@ footer { color: var(--muted); font-size: .9rem; border-top: 1px solid var(--line
 <body>
 <main>
   <h1>Spreadsheet Scrambler</h1>
-  <p class="lede">Make a copy of an Excel file with made-up values but the same structure, so you can share it, test with it or hand it to other tools without exposing the real data.</p>
+  <p class="lede">Anonymize an Excel file: make a copy with made-up names, numbers and dates but the same sheets, columns and formulas, so you can share it, test with it or hand it to other tools without exposing the real data.</p>
 
   <section class="privacy" aria-label="Privacy">
     <p><strong>Your file never leaves this computer.</strong> Everything happens inside this page, in your browser.</p>
@@ -82,7 +120,7 @@ footer { color: var(--muted); font-size: .9rem; border-top: 1px solid var(--line
       <li>No analytics, cookies or outside code. The page's security policy blocks every network request.</li>
       <li>Works offline: save this page and open it from your disk.</li>
     </ul>
-    <p id="source-line"><a id="source" target="_blank" rel="noopener">Read the source code</a>. It is this one file.</p>
+    <p id="source-line"><a id="source" target="_blank" rel="noopener noreferrer">Read the source code</a>. It is this one file.</p>
   </section>
 
   <label class="drop" id="drop">
@@ -122,6 +160,15 @@ footer { color: var(--muted); font-size: .9rem; border-top: 1px solid var(--line
 
   <div id="result" aria-live="polite"></div>
 
+  <details>
+    <summary>What is it for?</summary>
+    <ul>
+      <li>Sending a realistic sample to a vendor, consultant or support team without sending real customer or financial data.</li>
+      <li>Giving a spreadsheet to an AI assistant or another online tool so it can build formulas, reports or code, without it ever seeing the real values.</li>
+      <li>Test data for developers and data teams that has the exact shape of production files.</li>
+      <li>Demos, training and bug reports with files that look real but aren't.</li>
+    </ul>
+  </details>
   <details>
     <summary>How values change</summary>
     <ul>
@@ -954,7 +1001,6 @@ function startPage() {
     source.href = `https://github.com/${location.hostname.split(".")[0]}/${repo}`;
   } else if (SOURCE_URL) source.href = SOURCE_URL;
   else $("source-line").textContent = "The source code is this one file: use your browser's View Source to read it.";
-
   const el = (tag, text, cls) => { const e = document.createElement(tag); if (text !== undefined) e.textContent = text; if (cls) e.className = cls; return e; };
   const fmt = n => (n || 0).toLocaleString();
   function showError(err) {

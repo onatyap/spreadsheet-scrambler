@@ -116,6 +116,23 @@ for (const fixtureName of ["fixture.xlsx", "fixture-sst.xlsx"]) {
   });
 }
 
+await test("the page can't reach the network", () => {
+  const csp = html.match(/http-equiv="Content-Security-Policy" content="([^"]*)"/)[1];
+  for (const rule of ["default-src 'none'", "connect-src 'none'", "form-action 'none'", "base-uri 'none'", "img-src data:"])
+    assert.ok(csp.includes(rule), `policy keeps ${rule}`);
+  assert.ok(!/(script|style)-src[^;]*(https?:|\*|'self'|blob:)/.test(csp), "policy allows no outside scripts or styles");
+  const loads = [
+    ...html.matchAll(/<(?:script|img|iframe|frame|embed|object|audio|video|source|track|input)\b[^>]*\s(?:src|data|poster)="([^"]*)"/g),
+    ...html.matchAll(/<link\b(?![^>]*rel="canonical")[^>]*\shref="([^"]*)"/g),
+  ].map(m => m[1]);
+  for (const url of loads) assert.ok(url.startsWith("data:"), `the page loads ${url}`);
+  assert.ok(!/@import|url\(\s*['"]?(https?:|\/\/)/i.test(html), "no outside CSS");
+  const code = html.match(/<script>([\s\S]*?)<\/script>/)[1];
+  for (const api of ["fetch(", "XMLHttpRequest", "WebSocket", "EventSource", "sendBeacon", "importScripts", "new Image", "Worker(",
+    "window.open", "location.href =", "location.assign", "location.replace", ".src =", "RTCPeerConnection"])
+    assert.ok(!code.includes(api), `the page's code uses ${api}`);
+});
+
 await test("ranges are read and checked", () => {
   const sel = parseSelection("B2:F9, H:H; 'Sales'!3:10", SHEETS, ["Sales", "Lookup"]);
   assert.deepEqual(sel.get("Sales"), [{ c1: 2, c2: 6, r1: 2, r2: 9 }, { c1: 8, c2: 8, r1: 1, r2: Infinity }, { c1: 1, c2: Infinity, r1: 3, r2: 10 }]);

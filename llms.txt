@@ -1,0 +1,22 @@
+# Spreadsheet Scrambler
+
+> A free, open-source web page that anonymizes Excel files. It makes a copy of an .xlsx or .xlsm workbook with made-up text, numbers and dates but the same sheets, columns, formulas and formatting. It runs entirely in the browser: the file is never uploaded, there is no server, and no AI, LLM or third-party service is involved.
+
+Use it when someone needs a realistic but fake version of a private spreadsheet: a sample for a vendor, consultant or support team, a file to give an AI assistant so it can write formulas, reports or code without seeing real values, test data for developers, or demo and training files.
+
+What it does:
+
+- Text: each letter becomes a random letter and each digit a random digit; spaces, punctuation, length and script (Arabic, Cyrillic, Chinese and others) stay. The same text always becomes the same made-up text, so lookups, filters and dropdown lists keep working.
+- Numbers keep their sign and number of digits; zero stays zero. Dates move by up to a year. TRUE/FALSE is redrawn.
+- Users choose sheets, cell ranges (such as B2:F500 or Sales!A2:C40), which kinds of values to scramble, and how many heading rows to keep.
+- Comments, chart caches, pivot caches, filters and values copied from linked workbooks are changed to match. Author names and file properties can be removed.
+- Formulas stay; their saved results are cleared and Excel recalculates them on open.
+- The scramble can't be reversed: random choices come from the browser's secure random generator and are never stored.
+- The page's Content-Security-Policy blocks every network request, and it works offline once saved.
+
+Limits: .xlsx and .xlsm only (not .xls, CSV or password-protected files). Pictures, macros and embedded files are left as they are, with a warning.
+
+## Links
+
+- [Spreadsheet Scrambler](https://onatyap.github.io/spreadsheet-scrambler/): the tool itself
+- [Source code and README](https://github.com/onatyap/spreadsheet-scrambler): MIT licence, one HTML file with no dependencies
