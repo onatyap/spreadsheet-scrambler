@@ -20,7 +20,7 @@ It is one HTML file. Open it in a browser, choose a workbook, pick what to scram
 - **No analytics, cookies, fonts, CDNs or other outside code.** There are no dependencies: the page unzips and zips the workbook with the browser's own compression.
 - **The page can't send anything even by mistake.** Its Content-Security-Policy is `default-src 'none'; connect-src 'none'; form-action 'none'`, so the browser blocks every network request it might make.
 - **It works offline.** Save `index.html` and open it from your disk.
-- **Search and preview files are inert.** The search and link-preview tags in the page, `sitemap.xml`, `llms.txt` and `og-image.png` are only read by search engines and chat apps. The page itself never loads them.
+- **Search and preview files are inert.** The search, link-preview and Google verification tags in the page, `sitemap.xml`, `llms.txt`, `og-image.png` and `googleb35de2ce6a5eff87.html` are only read by search engines and chat apps. The page itself never loads them.
 
 To check for yourself, read `index.html` (about 1,000 lines with the page's HTML and CSS, no minified code) or open your browser's developer tools on the Network tab while you scramble a file. You'll see no requests. The test in `test/test.mjs` also fails if the page ever gains a way to reach the network: an outside script, style, font or image, a weaker security policy, or code that calls `fetch`, `XMLHttpRequest`, `WebSocket`, `sendBeacon` and the like.
 
